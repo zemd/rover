@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	
+	<title>Curiously on the earth</title>
+	<link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600&subset=cyrillic,latin' rel='stylesheet' type='text/css'>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+	<script src="http://code.jquery.com/jquery.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+	<script src="http://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
+	
+
+	<style type="text/css">
+	  html { height: 100% }
+	  body { height: 100%; margin: 0; padding: 0 }
+	  #map { height: 100% }
+	  #panel {
+		  position: fixed;
+		  top: 10%;
+		  right: 20px;
+		  width: 300px;
+		  min-height: 300px;
+		  max-height: 500px;
+		  overflow: scroll;
+		  background: #fff;
+		  padding: 10px;
+	  }
+	  #route {
+		  list-style: none;
+		  width: 100%;
+		  margin: 0;
+		  padding: 0;
+	  }
+	  #route .interval {
+	  	  text-align: center;
+	  }
+	  #route input {
+		  width: 40px;
+	  }
+	  #route li {
+		  line-height: 2;
+	  }
+	</style>
+	
+	<script type="text/javascript" src="http://maps.googleapis.com/maps/api/js?sensor=false&key=AIzaSyDGh3p9idYjdUlJxg2M4it0jWh4ywOAXSY&libraries=drawing"></script>
+</head>
+<body>
+	<div id="map"></div>
+	
+	<div id="panel">
+		<h3>Маршрут</h3>
+		<ul id="route"></ul>
+		<div>
+			<button type="button" class="btn btn-default" id="go">Запустить марсоход по маршруту</button>
+		</div>
+	</div>
+	<script>
+	(function (window) {
+		var document = window.document;
+		var _ = window._;
+		var route = [];
+		var times = [];
+        var current = null;
+		var options = {
+			center: new google.maps.LatLng(47.7109346, 9.934404),
+			zoom: 9
+		};
+		var templt = _.template(
+			'<% _.forEach(markers, function (marker, index) { %> ' +
+				'<% if (index != 0) { %>' +
+				'<li class="interval">-&gt;<input value="<%= times[index] ? times[index] : 10 %>" data-to="<%= index %>"> сек.</li>' +
+				'<% } %>' +
+				'<li class="latlng"><a href="#">(<%= (marker.lat + "").substr(0, 5) %>, <%= (marker.lng + "").substr(0,5) %>)</a></li>' +
+			'<% }); %>'
+		);
+		var map = new google.maps.Map(document.getElementById("map"), options);
+		var drawingManager = new google.maps.drawing.DrawingManager({
+		    drawingMode: google.maps.drawing.OverlayType.MARKER,
+		    drawingControl: true,
+		    drawingControlOptions: {
+		      position: google.maps.ControlPosition.TOP_CENTER,
+		      drawingModes: [
+		        google.maps.drawing.OverlayType.MARKER
+			  ]
+		    },
+		    markerOptions: {
+		      icon: 'images/beachflag.png'
+		    }
+		  });
+	   	drawingManager.setMap(map);
+		
+		google.maps.event.addListener(drawingManager, 'markercomplete', function(marker) {
+			route.push({
+                lat: marker.position.k,
+                lng: marker.position.B
+            });
+            retimes();
+			redraw();
+		});
+
+        function retimes()
+        {
+            $('input').each(function(index, inp) {
+                times[$(inp).data('to')] = $(inp).val();
+            });
+        }
+		
+		function redraw() {
+			var flightPath = new google.maps.Polyline({
+			    path: route,
+			    geodesic: true,
+			    strokeColor: '#FF0000',
+			    strokeOpacity: 1.0,
+			    strokeWeight: 2
+			  });
+
+			  flightPath.setMap(map);
+			  $('#route').html(templt({markers: route, times: times}));
+
+            if (current) {
+                var currentMarker = new google.maps.Marker({
+                    position: new google.maps.LatLng(current.lat, current.lng),
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10
+                    },
+                    draggable: true,
+                    map: map
+                });
+
+            }
+		}
+		
+		$('#route').on('keyup', 'input', function (event) {
+			var $input = $(event.target);
+			times[$input.data('to')] = $input.val();
+		});
+		
+		$('#go').on('click', function (event) {
+			$.ajax({
+				url: '/go',
+                method: 'POST',
+				data: { markers: route, times: times }
+			}).success(function(data) {
+                window.location.hash = '#' + data;
+            });
+		});
+
+        if (window.location.hash.length) {
+            $.ajax({
+                'url': '/get',
+                method: 'POST',
+                data: { id: window.location.hash.substring(1) }
+            }).success(function(data) {
+                if (_.size(data) == 0) {
+                    return;
+                }
+                route = makeLatLng(data.route);
+                times = data.times;
+                current = data.current;
+
+                redraw();
+            });
+        }
+
+        function makeLatLng(route)
+        {
+            var result = [];
+            _.each(route, function (el) {
+                var position = {
+                    'lat': parseFloat(el.lat),
+                    'lng': parseFloat(el.lng)
+                };
+                result.push(position);
+
+                new google.maps.Marker({
+                    position: position,
+                    map: map
+                });
+            });
+
+
+
+
+            return result;
+        }
+
+	} (this));
+	</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+    "name": "dmitry/rover",
+    "description": "Test application",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Dmitry Zelenetskiy",
+            "email": "dmitry.zelenetskiy@gmail.com"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "tubalmartin/spherical-geometry-php",
+                "version": "3",
+                "dist": {
+                    "url": "https://github.com/tubalmartin/spherical-geometry-php/zipball/master",
+                    "type": "zip"
+                },
+                "autoload": {
+                    "files": ["spherical-geometry.class.php"]
+                }
+            }
+
+        }
+    ],
+    "require": {
+    	"silex/silex": "2.0.*@dev",
+		"twig/twig": "1.16.*@dev",
+		"symfony/twig-bridge": "2.6.*@dev",
+		"doctrine/dbal": "2.2.*",
+        "tubalmartin/spherical-geometry-php": "*"
+    },
+    "autoload": {
+        "psr-0": {
+            "Rover": "src/"
+        }
+    }
+}

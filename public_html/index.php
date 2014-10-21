@@ -33,7 +33,7 @@ $app->get("/init", function () use ($app) {
 $app->post('/go', function(Request $request) use ($app) {
 	$markers = $request->get('markers');
 	$times = $request->get('times');
-	
+
 	$stmt = $app['db']->prepare('INSERT INTO `rovers` (`route`, `times`, `started`) VALUES (?, ?, ?)');
     $stmt->execute(array(serialize($markers), serialize($times), date("Y-m-d H:i:s")));
     $res = $app['db']->lastInsertId();
@@ -47,11 +47,12 @@ $app->post("/get", function (Request $request) use ($app) {
 
     $route = unserialize($res[0]['route']);
     $times = unserialize($res[0]['times']);
+    $date = new \DateTime($res[0]['started']);
 
     $data = array(
         'route' => $route,
         'times' => $times,
-        'current' => $app["rover"]->getRoverPosition($route, $times, new \DateTime($res[0]['started']))
+        'current' => $app["rover"]->getRoverPosition($route, $times, $date)
     );
     return new JsonResponse($data);
 });

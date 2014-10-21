@@ -56,6 +56,7 @@
 		<ul id="route"></ul>
 		<div>
 			<button type="button" class="btn btn-default" id="go">Запустить марсоход по маршруту</button>
+            <button class="btn btn-default" id="refresh">Refresh</button>
 		</div>
 	</div>
 	<script>
@@ -65,6 +66,7 @@
 		var route = [];
 		var times = [];
         var current = null;
+        var currentMarker = null;
 		var options = {
 			center: new google.maps.LatLng(47.7109346, 9.934404),
 			zoom: 9
@@ -72,7 +74,7 @@
 		var templt = _.template(
 			'<% _.forEach(markers, function (marker, index) { %> ' +
 				'<% if (index != 0) { %>' +
-				'<li class="interval">-&gt;<input value="<%= times[index] ? times[index] : 10 %>" data-to="<%= index %>"> сек.</li>' +
+				'<li class="interval">-&gt;<input value="<%= times[index - 1] ? times[index - 1] : 10 %>" data-to="<%= index-1 %>"> сек.</li>' +
 				'<% } %>' +
 				'<li class="latlng"><a href="#">(<%= (marker.lat + "").substr(0, 5) %>, <%= (marker.lng + "").substr(0,5) %>)</a></li>' +
 			'<% }); %>'
@@ -122,16 +124,18 @@
 			  $('#route').html(templt({markers: route, times: times}));
 
             if (current) {
-                var currentMarker = new google.maps.Marker({
+                if (currentMarker) {
+                    currentMarker.setMap(null);
+                }
+                currentMarker = new google.maps.Marker({
                     position: new google.maps.LatLng(current.lat, current.lng),
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 10
                     },
-                    draggable: true,
+                    draggable: false,
                     map: map
                 });
-
             }
 		}
 		
@@ -141,20 +145,27 @@
 		});
 		
 		$('#go').on('click', function (event) {
+            retimes();
 			$.ajax({
 				url: '/go',
                 method: 'POST',
 				data: { markers: route, times: times }
 			}).success(function(data) {
                 window.location.hash = '#' + data;
+                getRoute(data)
             });
 		});
 
         if (window.location.hash.length) {
+            getRoute(window.location.hash.substring(1));
+        }
+
+        function getRoute(routeID)
+        {
             $.ajax({
                 'url': '/get',
                 method: 'POST',
-                data: { id: window.location.hash.substring(1) }
+                data: { id: routeID }
             }).success(function(data) {
                 if (_.size(data) == 0) {
                     return;
@@ -165,7 +176,15 @@
 
                 redraw();
             });
+
+            window.setTimeout(function () {
+                getRoute(routeID);
+            }, 500);
         }
+
+        $('#refresh').on('click', function () {
+            getRoute(window.location.hash.substring(1));
+        });
 
         function makeLatLng(route)
         {
@@ -182,10 +201,6 @@
                     map: map
                 });
             });
-
-
-
-
             return result;
         }
 

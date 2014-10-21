@@ -2,49 +2,85 @@
 
 namespace Rover\Services;
 	
+use LatLng;
 use SphericalGeometry;
 
 class RoverService
 {
-	public function getRoverPosition(array $routes, array $times, \DateTime $started)
-	{
-        $interval = $started->diff(new \DateTime("now"));
+    protected $curIntervalTime;
 
-        $seconds = $interval->s;
+    protected $curTimeSum;
 
+    protected $curIntervalPoints = array();
+
+    protected function getCurDiff(\DateTime $from)
+    {
+        return strtotime("now") - strtotime($from->format("Y-m-d H:i:s"));
+    }
+
+    /**
+     * Searching route's interval
+     *
+     * @param array $routes
+     * @param array $times
+     * @param int $seconds
+     * @return array
+     */
+    protected function findRoutes(array $routes, array $times, $seconds)
+    {
         $startRoute = null;
-        $j = 0;
-        $thetime = 0;
-        foreach($times as $i => $time) {
-            $seconds -= $time;
+        $endRoute = null;
 
-            if ($seconds < 0) {
+        for($i=0; $i<count($times); $i += 1) {
+            $seconds -= $times[$i];
+
+            if ($seconds <= 0) {
+                $this->curIntervalTime = $times[$i];
                 $startRoute = $routes[$i];
-                $j = $i;
-                $thetime = $time;
+                $endRoute = $routes[$i + 1];
                 break;
             }
         }
         if ($seconds > 0) {
-            return array_pop($routes);
+            return array();
         }
-        $endRoute = $routes[$j + 1];
+        $this->curTimeSum = $seconds;
+        return array(new LatLng($startRoute['lat'], $startRoute['lng']), new LatLng($endRoute['lat'], $endRoute['lng']));
+    }
 
-        $startRoute = new \LatLng($startRoute['lat'], $startRoute['lng']);
-        $endRoute = new \LatLng($endRoute['lat'], $endRoute['lng']);
+    /**
+     * @param array $routes
+     * @param array $times
+     * @param \DateTime $started
+     * @return array
+     */
+	public function getRoverPosition(array $routes, array $times, \DateTime $started)
+	{
+        $seconds = $this->getCurDiff($started);
+        $this->curIntervalPoints = $this->findRoutes($routes, $times, $seconds);
 
-        $length = SphericalGeometry::computeLength(array($startRoute, $endRoute));
+        if (count($this->curIntervalPoints) == 0) {
+            return $routes[count($routes) - 1];
+        }
 
-        $fraction = $length / $thetime;
-        $moved = $fraction * ($thetime + $seconds);
+        list($startRoute, $endRoute) = $this->curIntervalPoints;
+
+        $traversed = $this->getTraversedLength($this->curTimeSum, $this->curIntervalTime, $this->curIntervalPoints);
+
         $heading = SphericalGeometry::computeHeading($startRoute, $endRoute);
-
-        $position = SphericalGeometry::computeOffset($startRoute, $moved, $heading);
+        $position = SphericalGeometry::computeOffset($startRoute, $traversed, $heading);
 
 		return array(
             'lat' => $position->getLat(),
             'lng' => $position->getLng()
         );
 	}
+
+    protected function getTraversedLength($seconds, $intervalTime, $points)
+    {
+        $intervalLength = SphericalGeometry::computeLength($points);
+        $fraction = $intervalLength / $intervalTime;
+        return $fraction * ($intervalTime + $seconds);
+    }
 
 }
